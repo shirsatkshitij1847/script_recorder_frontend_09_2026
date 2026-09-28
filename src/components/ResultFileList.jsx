@@ -1,34 +1,39 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const SKELETON_ROWS = 6;
+const AUTO_REFRESH_INTERVAL_MS = 30000;
 
 function ResultFileList({ user, version, onOpenResult }) {
-  const [files, setFiles] = useState([]);
+  const [folders, setFolders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const loadedKeyRef = useRef(null);
 
   useEffect(() => {
     let isCurrent = true;
 
-    async function loadFiles() {
+    async function loadFolders() {
       if (!user || !version) {
-        setFiles([]);
+        setFolders([]);
         setHasError(false);
         setIsLoading(false);
+        loadedKeyRef.current = null;
         return;
       }
 
-      setFiles([]);
+      const selectionKey = `${user}::${version}`;
+      if (loadedKeyRef.current !== selectionKey) setFolders([]);
+      loadedKeyRef.current = selectionKey;
       setIsLoading(true);
       setHasError(false);
 
       try {
-        const fileList = await window.electronAPI?.getUserFiles(user, version);
-        if (isCurrent) setFiles(Array.isArray(fileList) ? fileList : []);
+        const folderList = await window.electronAPI?.getUserFolders(user, version);
+        if (isCurrent) setFolders(Array.isArray(folderList) ? folderList : []);
       } catch {
         if (isCurrent) {
-          setFiles([]);
+          setFolders([]);
           setHasError(true);
         }
       } finally {
@@ -36,11 +41,17 @@ function ResultFileList({ user, version, onOpenResult }) {
       }
     }
 
-    loadFiles();
+    loadFolders();
     return () => { isCurrent = false; };
   }, [user, version, refreshKey]);
 
-  const showSkeleton = isLoading || (!user && !hasError);
+  useEffect(() => {
+    if (!user || !version) return undefined;
+    const timer = setInterval(() => setRefreshKey((key) => key + 1), AUTO_REFRESH_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [user, version]);
+
+  const showSkeleton = (isLoading && folders.length === 0) || (!user && !hasError);
 
   return (
     <section className="results-panel">
@@ -55,7 +66,7 @@ function ResultFileList({ user, version, onOpenResult }) {
           ) : (
             <>
               <h1>{user}</h1>
-              <p>{version ? `${files.length} available files · Version ${version}` : "Select a version to view available results."}</p>
+              <p>{version ? `${folders.length} execution folders · Version ${version}` : "Select a version to view available folders."}</p>
             </>
           )}
         </div>
@@ -69,7 +80,7 @@ function ResultFileList({ user, version, onOpenResult }) {
       </header>
 
       {showSkeleton ? (
-        <ul className="result-file-list result-skeleton-list" aria-label="Loading result files" aria-busy="true">
+        <ul className="result-file-list result-skeleton-list" aria-label="Loading result folders" aria-busy="true">
           {Array.from({ length: SKELETON_ROWS }, (_, index) => (
             <li key={index} aria-hidden="true">
               <span className="skeleton-block skeleton-status" />
@@ -82,18 +93,18 @@ function ResultFileList({ user, version, onOpenResult }) {
           ))}
         </ul>
       ) : !version ? (
-        <div className="result-list-state">Select a version to view available results.</div>
+        <div className="result-list-state">Select a version to view available folders.</div>
       ) : hasError ? (
         <div className="result-list-state">Data not available.</div>
-      ) : files.length ? (
+      ) : folders.length ? (
         <ul className="result-file-list">
-          {files.map((fileName) => (
-            <li key={fileName}>
-              <button className="result-file-button" onClick={() => onOpenResult(fileName)}>
-                <span className="result-file-status" aria-hidden="true">&#10003;</span>
+          {folders.map((folderName) => (
+            <li key={folderName}>
+              <button className="result-file-button" onClick={() => onOpenResult(folderName)}>
+                <span className="result-file-status" aria-hidden="true">&#128193;</span>
                 <span className="result-file-details">
-                  <strong>{fileName}</strong>
-                  <small>{fileName.toLowerCase().includes(".html") ? "HTML result" : "JSON result"} · Version {version}</small>
+                  <strong>{folderName}</strong>
+                  <small>Execution folder · Version {version}</small>
                 </span>
                 <span className="result-user-tag">user:{user}</span>
                 <span className="result-open-icon" aria-hidden="true">&#8250;</span>
@@ -102,7 +113,7 @@ function ResultFileList({ user, version, onOpenResult }) {
           ))}
         </ul>
       ) : (
-        <div className="result-list-state">No result files are available for this user.</div>
+        <div className="result-list-state">No execution folders are available for this user.</div>
       )}
     </section>
   );

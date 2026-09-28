@@ -11,7 +11,7 @@ function ResultViewer({ result, onBack }) {
   const [hasError, setHasError] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const resultUrl = `http://localhost:7000/api/users/${encodeURIComponent(result.user)}/${encodeURIComponent(result.version)}/${encodeURIComponent(result.fileName)}`;
+  const resultUrl = `http://localhost:7000/api/users/${encodeURIComponent(result.user)}/${encodeURIComponent(result.version)}/${encodeURIComponent(result.testExecutionId)}/${encodeURIComponent(result.fileName)}`;
 
   useEffect(() => {
     let isCurrent = true;
@@ -23,7 +23,7 @@ function ResultViewer({ result, onBack }) {
       setIsEmpty(false);
 
       try {
-        const content = await window.electronAPI?.getUserResult(result.user, result.version, result.fileName);
+        const content = await window.electronAPI?.getUserResult(result.user, result.version, result.testExecutionId, result.fileName);
         if (!isCurrent) return;
         if (typeof content !== "string") setHasError(true);
         else setIsEmpty(!hasRenderableContent(content));
@@ -45,7 +45,7 @@ function ResultViewer({ result, onBack }) {
       <header className="result-viewer-toolbar">
         <button className="viewer-back-button" onClick={onBack} aria-label="Back to result files" title="Back to results">&#8592;</button>
         <div className="viewer-file-copy">
-          <strong>{result.fileName}</strong>
+          <strong>{result.testExecutionId}</strong>
           <span>Version {result.version}</span>
         </div>
         <span className="result-user-tag">user:{result.user}</span>

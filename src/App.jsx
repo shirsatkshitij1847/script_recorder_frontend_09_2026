@@ -248,8 +248,8 @@ function App() {
     if (activePage === "result") navigate("results");
   };
 
-  const openResult = (fileName) => {
-    setSelectedResult({ user: selectedUser, version: selectedVersion, fileName });
+  const openResult = (testExecutionId) => {
+    setSelectedResult({ user: selectedUser, version: selectedVersion, testExecutionId, fileName: `${testExecutionId}.html` });
     navigate("result");
   };
 

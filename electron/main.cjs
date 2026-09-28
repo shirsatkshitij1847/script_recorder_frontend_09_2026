@@ -95,19 +95,19 @@ ipcMain.handle("create-user-version", async (_event, user, version) => {
   return data;
 });
 
-ipcMain.handle("get-user-files", async (_event, user, version) => {
+ipcMain.handle("get-user-folders", async (_event, user, version) => {
   if (!user || !version) throw new Error("User and version are required");
 
-  const response = await fetch(`${getBaseUrl()}/api/users/${encodeURIComponent(user)}/${encodeURIComponent(version)}/files`);
-  if (!response.ok) throw new Error(`User files API returned ${response.status}`);
+  const response = await fetch(`${getBaseUrl()}/api/users/${encodeURIComponent(user)}/${encodeURIComponent(version)}/folders`);
+  if (!response.ok) throw new Error(`User folders API returned ${response.status}`);
   const data = await response.json();
-  return Array.isArray(data.files) ? data.files : [];
+  return Array.isArray(data.folders) ? data.folders : [];
 });
 
-ipcMain.handle("get-user-result", async (_event, user, version, fileName) => {
-  if (!user || !version || !fileName) throw new Error("User, version, and file name are required");
+ipcMain.handle("get-user-result", async (_event, user, version, testExecutionId, fileName) => {
+  if (!user || !version || !testExecutionId || !fileName) throw new Error("User, version, execution ID, and file name are required");
 
-  const response = await fetch(`${getBaseUrl()}/api/users/${encodeURIComponent(user)}/${encodeURIComponent(version)}/${encodeURIComponent(fileName)}`);
+  const response = await fetch(`${getBaseUrl()}/api/users/${encodeURIComponent(user)}/${encodeURIComponent(version)}/${encodeURIComponent(testExecutionId)}/${encodeURIComponent(fileName)}`);
   if (!response.ok) throw new Error(`User result API returned ${response.status}`);
   return response.text();
 });

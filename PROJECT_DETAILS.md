@@ -78,7 +78,7 @@ This repository does **not** contain the backend server — it's a separate serv
 - `POST /api/users/:user/:version` — create a version folder under a user
 - `GET /api/users/:user/versions` — list a user's versions
 - `GET /api/results/:version` — results across all users for a version
-- `GET /api/users/:user/:version/files` — list result file names
+- `GET /api/users/:user/:version/folders` — list execution folder names for a version (the older `:version/files` path is an alias)
 - `GET /api/users/:user/:version/:fileName` — fetch a specific result file (HTML)
 - `GET /api/health` — health check used by Team Setup
 
