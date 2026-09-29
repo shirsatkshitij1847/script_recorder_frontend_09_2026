@@ -14,7 +14,7 @@ function ResultViewer({ result, onBack }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [isEmpty, setIsEmpty] = useState(false);
   const [fileName, setFileName] = useState("");
-  const [htmlContent, setHtmlContent] = useState("");
+  const [htmlUrl, setHtmlUrl] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [isTraceLoading, setIsTraceLoading] = useState(false);
@@ -26,6 +26,7 @@ function ResultViewer({ result, onBack }) {
 
   useEffect(() => {
     let isCurrent = true;
+    let objectUrl = "";
 
     async function loadResult() {
       setIsLoading(true);
@@ -34,16 +35,20 @@ function ResultViewer({ result, onBack }) {
       setErrorMessage("");
       setIsEmpty(false);
       setFileName("");
-      setHtmlContent("");
+      setHtmlUrl("");
 
       try {
         const resolved = await window.electronAPI?.getUserResult(result.user, result.version, result.testExecutionId);
         if (!isCurrent) return;
         if (!resolved || typeof resolved.content !== "string") setHasError(true);
         else {
+          const empty = !hasRenderableContent(resolved.content);
           setFileName(resolved.fileName);
-          setHtmlContent(resolved.content);
-          setIsEmpty(!hasRenderableContent(resolved.content));
+          setIsEmpty(empty);
+          if (!empty) {
+            objectUrl = URL.createObjectURL(new Blob([resolved.content], { type: "text/html" }));
+            setHtmlUrl(objectUrl);
+          }
         }
       } catch (error) {
         if (isCurrent) {
@@ -56,7 +61,10 @@ function ResultViewer({ result, onBack }) {
     }
 
     loadResult();
-    return () => { isCurrent = false; };
+    return () => {
+      isCurrent = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [result, refreshKey]);
 
   useEffect(() => {
@@ -152,11 +160,11 @@ function ResultViewer({ result, onBack }) {
               <strong>HTML loaded, but the body is empty.</strong>
               <span>This result file does not contain visible content.</span>
             </div>
-          ) : !isLoading && htmlContent ? (
+          ) : !isLoading && htmlUrl ? (
             <iframe
               className="result-html-frame"
               title={`${fileName} result`}
-              srcDoc={htmlContent}
+              src={htmlUrl}
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
               onLoad={() => setIsFrameLoading(false)}
             />
