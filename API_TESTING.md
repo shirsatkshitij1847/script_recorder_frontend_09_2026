@@ -12,14 +12,12 @@ The API loads values from `.env` through `dotenv`. The following four variables 
 | `BUCKET_NAME` | Yes | S3 bucket used for test results |
 | `PORT` | No | API server port; defaults to `7000` |
 
-The trace viewer is a separate process. Its settings are optional:
+The trace viewer runs through the API server. These settings are optional:
 
 | Variable | Default | Used for |
 | --- | --- | --- |
-| `TRACE_VIEWER_PORT` | `7001` | Trace viewer server port |
 | `PLAYWRIGHT_PORT` | `9323` | First port checked for a Playwright trace session; increments if occupied |
-| `SESSION_TIMEOUT` | `180000` | Session lifetime in milliseconds (3 minutes) |
-| `HOST` | `127.0.0.1` | Host shown in the trace viewer startup log; it does not configure the listener binding |
+| `SESSION_TIMEOUT` | `360000` | Session lifetime in milliseconds (6 minutes) |
 
 Example `.env` keys (provide the actual values for your environment):
 
@@ -33,14 +31,13 @@ PORT=7000
 
 ## Start the Servers
 
-Run these from the project directory in separate terminals:
+Start the API and trace viewer together from the project directory:
 
 ```bash
 node server.js
-node traceViwerServer.js
 ```
 
-The API base URL defaults to `http://localhost:7000`. The trace viewer defaults to `http://localhost:7001`.
+The API and trace viewer use the same base URL, which defaults to `http://localhost:7000`.
 
 ## Test with the Current S3 Data
 
@@ -200,18 +197,18 @@ Lists only the immediate folder names under a user's version. It does not list o
 }
 ```
 
-### `GET /api/users/:user/:version/:testExecutionId/:fileName`
+### `GET /api/users/:user/:version/:testExecutionId`
 
-Returns the named file from the specified test execution folder as an HTML response. The S3 key is `user/version/testExecutionId/fileName`. Execution HTML files use the execution ID as the filename, for example:
+Returns the execution HTML file as an HTML response. The filename is built from the execution ID, so the S3 key is `user/version/testExecutionId/testExecutionId.html`. For example:
 
 ```text
-GET /api/users/kshitijshirsat1847/2704/testexecution3dd1e1f5959249/testexecution3dd1e1f5959249.html
+GET /api/users/kshitijshirsat1847/2704/testexecution3dd1e1f5959249
 ```
 
 PowerShell request:
 
 ```powershell
-$url = "http://localhost:7000/api/users/kshitijshirsat1847/2704/testexecution3dd1e1f5959249/testexecution3dd1e1f5959249.html"
+$url = "http://localhost:7000/api/users/kshitijshirsat1847/2704/testexecution3dd1e1f5959249"
 Invoke-WebRequest $url
 ```
 
@@ -221,25 +218,103 @@ Handler errors are returned as `404` JSON:
 { "error": "<S3 error message>" }
 ```
 
-## Trace Viewer Routes
+### `GET /api/users/:user/:version/:testExecutionId/tags`
 
-These routes are handled by the separate `traceViwerServer.js` process, whose default base URL is `http://localhost:7001`.
+Returns the S3 tags for the execution HTML file. The filename is built from the execution ID as `<testExecutionId>.html`.
 
-### `GET /`
+```powershell
+$url = "http://localhost:7000/api/users/kshitijshirsat1847/2704/testexecution3dd1e1f5959249/tags"
+Invoke-RestMethod $url
+```
 
-Returns a welcome message as plain text.
+The response contains the S3 tag set:
 
-### `GET /sessions`
+```json
+{
+  "tags": [
+    { "Key": "example-key", "Value": "example-value" }
+  ]
+}
+```
 
-Lists active trace sessions, including their IDs, trace names, ports, and creation times.
+If the S3 object is not found, the API returns `404` JSON:
 
-### `GET /trace/:traceName`
+```json
+{ "error": "<S3 error message>" }
+```
 
-Starts a Playwright trace viewer session for the supplied trace name, or reuses the existing session for that trace. The JSON response includes `sessionId`, `port`, `url`, and a `message`. Open the returned `url` to view the trace.
+### `GET /api/users/:user/:version/:testExecutionId/trace`
 
-### `/viewer/:sessionId/`
+Downloads the execution trace ZIP from `user/version/testExecutionId/testExecutionId.zip`. The API first saves a backend copy under `traces/<testExecutionId>-<uuid>.zip`, then returns the ZIP as an attachment named `<testExecutionId>.zip`. `-OutFile` selects where the client saves its downloaded copy.
 
-Proxies requests to the Playwright viewer for that session. Returns `404` with `Session not found` when the session ID is not active. Sessions are terminated after `SESSION_TIMEOUT` milliseconds.
+```powershell
+$url = "http://localhost:7000/api/users/kshitijshirsat1847/2704/testexecution05aadd03bf1143/trace"
+Invoke-WebRequest $url -OutFile "testexecution05aadd03bf1143.zip"
+```
+
+The standalone downloader uses the sample user, version, and execution ID above and saves a uniquely named ZIP in the project `traces/` directory:
+
+```powershell
+node .\downloadTrace.js
+```
+
+## Trace Viewer
+
+The trace viewer is integrated into the API server; no separate trace-viewer server or port is required. Open this URL in a browser, replacing the user, version, and execution ID with the target execution:
+
+```text
+http://localhost:7000/api/users/kshitijshirsat1847/2704/testexecution05aadd03bf1143/trace/viewer
+```
+
+The route performs these steps:
+
+1. Downloads `user/version/testExecutionId/testExecutionId.zip` from S3.
+2. Saves the ZIP under `traces/<sanitizedTestExecutionId>-<uuid>.zip` and returns that local path to the viewer handler.
+3. Starts `npx playwright show-trace` on an available local port, starting with `PLAYWRIGHT_PORT` (default `9323`).
+4. Returns a JSON response containing the `sessionId`, absolute viewer `url`, internal Playwright `port`, and a `reused` flag. The API proxies the returned URL to the matching Playwright process.
+
+Each active execution has its own UUID `sessionId`. Different executions get different sessions; requesting the same user, version, and execution ID again reuses its active session. The same downloaded file under `traces/` is passed to Playwright, and remains there after the session expires. API clients receive JSON; use its `url` to open the viewer. For example, from PowerShell:
+
+```powershell
+$session = Invoke-RestMethod "http://localhost:7000/api/users/kshitijshirsat1847/2704/testexecution05aadd03bf1143/trace/viewer"
+$session | ConvertTo-Json
+Start-Process $session.url
+```
+
+Example response:
+
+```json
+{
+  "sessionId": "<session-uuid>",
+  "url": "http://localhost:7000/viewer/<session-uuid>/",
+  "port": 9323,
+  "reused": false
+}
+```
+
+List active sessions with `GET /api/trace/sessions` (the `/sessions` path is an alias):
+
+```powershell
+Invoke-RestMethod "http://localhost:7000/api/trace/sessions" | ConvertTo-Json -Depth 5
+```
+
+Example response:
+
+```json
+{
+  "totalSessions": 1,
+  "sessions": [
+    {
+      "sessionId": "<session-uuid>",
+      "traceName": "kshitijshirsat1847/2704/testexecution05aadd03bf1143",
+      "port": 9323,
+      "createdAt": "2026-09-28T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+The `port` is the internal Playwright port; access the viewer through `/viewer/:sessionId/` on the API port. If that session ID is no longer active, the viewer route returns `404 Session not found`. Sessions expire after `SESSION_TIMEOUT` milliseconds (default `360000`, six minutes); expiration stops Playwright. The downloaded ZIP remains in `traces/` after the viewer session closes. A missing S3 ZIP returns `404` JSON; viewer startup errors return `500` JSON.
 
 ## Example Requests
 
@@ -251,8 +326,8 @@ curl -X POST http://localhost:7000/api/users/shirsat1847/2607
 curl http://localhost:7000/api/users/shirsat1847/versions
 curl http://localhost:7000/api/results/2607
 curl http://localhost:7000/api/users/shirsat1847/2607/folders
-curl http://localhost:7000/api/users/kshitijshirsat1847/2704/testexecution3dd1e1f5959249/testexecution3dd1e1f5959249.html
-curl http://localhost:7001/sessions
+curl http://localhost:7000/api/users/kshitijshirsat1847/2704/testexecution3dd1e1f5959249
+curl http://localhost:7000/api/trace/sessions
 ```
 
 The API returns JSON for its data routes. Unexpected S3 errors are returned as `500` on most API routes; the file-content route currently maps handler errors to `404`.

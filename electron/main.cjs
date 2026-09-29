@@ -5,6 +5,10 @@ const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
 
+// Avoids noisy "Unable to move/create cache" Windows errors when nodemon restarts Electron quickly in dev.
+app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
+app.commandLine.appendSwitch("disable-http-cache");
+
 const ignoredNames = new Set([".git", "node_modules", "dist", "build"]);
 const selectedRoots = new Set();
 
@@ -104,12 +108,45 @@ ipcMain.handle("get-user-folders", async (_event, user, version) => {
   return Array.isArray(data.folders) ? data.folders : [];
 });
 
-ipcMain.handle("get-user-result", async (_event, user, version, testExecutionId, fileName) => {
-  if (!user || !version || !testExecutionId || !fileName) throw new Error("User, version, execution ID, and file name are required");
+ipcMain.handle("get-user-result", async (_event, user, version, testExecutionId) => {
+  if (!user || !version || !testExecutionId) throw new Error("User, version, and execution ID are required");
 
-  const response = await fetch(`${getBaseUrl()}/api/users/${encodeURIComponent(user)}/${encodeURIComponent(version)}/${encodeURIComponent(testExecutionId)}/${encodeURIComponent(fileName)}`);
-  if (!response.ok) throw new Error(`User result API returned ${response.status}`);
-  return response.text();
+  const url = `${getBaseUrl()}/api/users/${encodeURIComponent(user)}/${encodeURIComponent(version)}/${encodeURIComponent(testExecutionId)}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`User result API returned ${response.status} for ${url}`);
+  return { fileName: `${testExecutionId}.html`, content: await response.text() };
+});
+
+ipcMain.handle("get-execution-tags", async (_event, user, version, testExecutionId) => {
+  if (!user || !version || !testExecutionId) throw new Error("User, version, and execution ID are required");
+
+  const url = `${getBaseUrl()}/api/users/${encodeURIComponent(user)}/${encodeURIComponent(version)}/${encodeURIComponent(testExecutionId)}/tags`;
+  const response = await fetch(url);
+  if (!response.ok) return [];
+  const data = await response.json().catch(() => ({}));
+  return Array.isArray(data.tags) ? data.tags : [];
+});
+
+ipcMain.handle("get-trace-viewer", async (_event, user, version, testExecutionId) => {
+  if (!user || !version || !testExecutionId) throw new Error("User, version, and execution ID are required");
+
+  const url = `${getBaseUrl()}/api/users/${encodeURIComponent(user)}/${encodeURIComponent(version)}/${encodeURIComponent(testExecutionId)}/trace/viewer`;
+
+  // The first request for a new session can 500 while Playwright is still starting up;
+  // a retry after a short delay reliably picks up the now-active (reused) session.
+  const attemptDelaysMs = [0, 1500, 3000];
+  let lastError;
+  for (const delayMs of attemptDelaysMs) {
+    if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    try {
+      const response = await fetch(url);
+      if (response.ok) return await response.json();
+      lastError = new Error(`Trace viewer API returned ${response.status} for ${url}`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 });
 
 function readFolderTree(folderPath, depth = 0) {

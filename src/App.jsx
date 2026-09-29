@@ -249,7 +249,7 @@ function App() {
   };
 
   const openResult = (testExecutionId) => {
-    setSelectedResult({ user: selectedUser, version: selectedVersion, testExecutionId, fileName: `${testExecutionId}.html` });
+    setSelectedResult({ user: selectedUser, version: selectedVersion, testExecutionId });
     navigate("result");
   };
 

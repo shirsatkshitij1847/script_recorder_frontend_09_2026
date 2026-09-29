@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 
 const SKELETON_ROWS = 6;
-const AUTO_REFRESH_INTERVAL_MS = 30000;
+const TAG_COLOR_COUNT = 12;
+
+function getTagColorIndex(key) {
+  const text = String(key || "");
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  return hash % TAG_COLOR_COUNT;
+}
 
 function ResultFileList({ user, version, onOpenResult }) {
   const [folders, setFolders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [tagsByFolder, setTagsByFolder] = useState({});
   const loadedKeyRef = useRef(null);
 
   useEffect(() => {
@@ -46,10 +54,26 @@ function ResultFileList({ user, version, onOpenResult }) {
   }, [user, version, refreshKey]);
 
   useEffect(() => {
-    if (!user || !version) return undefined;
-    const timer = setInterval(() => setRefreshKey((key) => key + 1), AUTO_REFRESH_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [user, version]);
+    if (!user || !version || !folders.length) {
+      setTagsByFolder({});
+      return undefined;
+    }
+
+    let isCurrent = true;
+    setTagsByFolder({});
+
+    folders.forEach((folderName) => {
+      window.electronAPI?.getExecutionTags(user, version, folderName)
+        .then((tags) => {
+          if (isCurrent) setTagsByFolder((current) => ({ ...current, [folderName]: Array.isArray(tags) ? tags : [] }));
+        })
+        .catch(() => {
+          if (isCurrent) setTagsByFolder((current) => ({ ...current, [folderName]: [] }));
+        });
+    });
+
+    return () => { isCurrent = false; };
+  }, [user, version, folders]);
 
   const showSkeleton = (isLoading && folders.length === 0) || (!user && !hasError);
 
@@ -98,19 +122,31 @@ function ResultFileList({ user, version, onOpenResult }) {
         <div className="result-list-state">Data not available.</div>
       ) : folders.length ? (
         <ul className="result-file-list">
-          {folders.map((folderName) => (
-            <li key={folderName}>
-              <button className="result-file-button" onClick={() => onOpenResult(folderName)}>
-                <span className="result-file-status" aria-hidden="true">&#128193;</span>
-                <span className="result-file-details">
-                  <strong>{folderName}</strong>
-                  <small>Execution folder · Version {version}</small>
-                </span>
-                <span className="result-user-tag">user:{user}</span>
-                <span className="result-open-icon" aria-hidden="true">&#8250;</span>
-              </button>
-            </li>
-          ))}
+          {folders.map((folderName) => {
+            const tags = tagsByFolder[folderName];
+            return (
+              <li key={folderName}>
+                <button className="result-file-button" onClick={() => onOpenResult(folderName)}>
+                  <span className="result-file-status" aria-hidden="true">&#128193;</span>
+                  <span className="result-file-details">
+                    <span className="result-file-name-row">
+                      <strong>{folderName}</strong>
+                      {tags?.length ? (
+                        <span className="result-tag-list">
+                          {tags.map((tag, index) => (
+                            <span className={`result-tag-chip result-tag-chip-${getTagColorIndex(tag.Key)}`} key={`${tag.Key}-${index}`}>{tag.Key}: {tag.Value}</span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </span>
+                    <small>Execution folder · Version {version}</small>
+                  </span>
+                  <span className="result-user-tag">user:{user}</span>
+                  <span className="result-open-icon" aria-hidden="true">&#8250;</span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <div className="result-list-state">No execution folders are available for this user.</div>

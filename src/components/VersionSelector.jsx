@@ -7,6 +7,7 @@ function VersionSelector({ user, selectedVersion, onSelectedVersionChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const selectorRef = useRef(null);
+  const loadedUserRef = useRef(null);
 
   const applyVersions = useEffectEvent((availableVersions) => {
     setVersions(availableVersions);
@@ -20,9 +21,13 @@ function VersionSelector({ user, selectedVersion, onSelectedVersionChange }) {
       if (!user) {
         setVersions([]);
         setHasError(false);
+        loadedUserRef.current = null;
         return;
       }
 
+      // Clear any previous user's versions immediately so the dropdown never shows stale data while the new user's list loads.
+      if (loadedUserRef.current !== user) setVersions([]);
+      loadedUserRef.current = user;
       setIsLoading(true);
       setHasError(false);
 

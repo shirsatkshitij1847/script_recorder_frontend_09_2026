@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "concurrently \"npm run react\" \"npm run electron\"",
     "react": "vite",
-    "electron": "wait-on http://localhost:5173 && nodemon --watch electron --ext cjs --exec electron .",
+    "electron": "wait-on http://localhost:5173 && nodemon --watch electron --ext cjs --delay 1 --exec electron .",
     "build": "vite build",
     "dist": "npm run build && electron-builder --win"
   },
