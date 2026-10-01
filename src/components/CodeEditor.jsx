@@ -10,8 +10,13 @@ const builtInNames = [
   "console", "window", "document", "Math", "JSON", "Array", "Object", "String", "Number",
 ];
 
+const playwrightNames = ["test", "expect", "page", "require"];
+const playwrightMethods = ["goto", "locator", "click", "press", "fill", "waitFor", "toBeVisible", "toContainText"];
+
 function getTokenColor(token) {
   if (keywords.includes(token)) return "syntax-keyword";
+  if (playwrightNames.includes(token)) return "syntax-playwright";
+  if (playwrightMethods.includes(token)) return "syntax-method";
   if (builtInNames.includes(token)) return "syntax-built-in";
   if (/^\d+(\.\d+)?$/.test(token)) return "syntax-number";
   if (/^["'`].*["'`]$/.test(token)) return "syntax-string";
@@ -23,7 +28,7 @@ function getTokenColor(token) {
 }
 
 function colorLine(line) {
-  const tokenPattern = /(\/\/.*|#[^\n]*|\/\*[\s\S]*?\*\/|["'`][^"'`]*["'`]|\b\d+(?:\.\d+)?\b|\b(?:const|let|var|function|return|if|else|for|while|import|from|export|default|class|new|async|await|true|false|null|undefined|console|window|document|Math|JSON|Array|Object|String|Number)\b|[+\-*/%=!<>|&?:]+|[{}()[\].,;:])/g;
+  const tokenPattern = /(\/\/.*|#[^\n]*|\/\*[\s\S]*?\*\/|["'`][^"'`]*["'`]|\b\d+(?:\.\d+)?\b|\b(?:const|let|var|function|return|if|else|for|while|import|from|export|default|class|new|async|await|true|false|null|undefined|console|window|document|Math|JSON|Array|Object|String|Number|test|expect|page|require|goto|locator|click|press|fill|waitFor|toBeVisible|toContainText)\b|[+\-*/%=!<>|&?:]+|[{}()[\].,;:])/g;
   const parts = line.split(tokenPattern);
 
   return parts.map((part, index) => (

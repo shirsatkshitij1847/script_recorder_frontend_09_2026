@@ -173,6 +173,8 @@ h1 { max-width: 580px; margin: 0; color: var(--text); font-family: 'Playfair Dis
 .minimap-line.highlight { background: #b96e28; }
 .code-placeholder { color: #6a6a6a; font-style: italic; }
 .syntax-keyword { color: #ff9d45; }
+.syntax-playwright { color: #56d9e8; font-weight: 700; }
+.syntax-method { color: #a9df79; }
 .syntax-string { color: #e6c07b; }
 .syntax-number { color: #d19a66; }
 .syntax-comment { color: #7eaa68; }
@@ -268,6 +270,7 @@ h1 { max-width: 580px; margin: 0; color: var(--text); font-family: 'Playfair Dis
 .recorder-choice.recommended { border-color: var(--accent); }
 .recorder-choice-name { color: var(--accent-bright); font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
 .recorder-choice-code { color: #d4d4d4; font-family: var(--mono); font-size: 11px; overflow-wrap: break-word; }
+.recorder-choice-why { color: #9ca3af; font-size: 11px; font-style: italic; }
 .recorder-tile { border-top-color: #7c3aed; }
 .recorder-tile:hover { border-color: #7c3aed; }
 .recorder-tile .home-tile-icon { border-color: rgba(124, 58, 237, .55); color: #1c1030; background: linear-gradient(145deg, #d6c8ff, #7c3aed); box-shadow: 0 12px 24px rgba(124, 58, 237, .34), inset 0 1px 0 rgba(255, 255, 255, .45); }
@@ -517,8 +520,9 @@ textarea::selection { color: var(--background); background: var(--accent); }
 .result-html-frame { display: block; width: 100%; height: 100%; border: 0; background: #ffffff; }
 .trace-loading { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; background: #f4f5f5; color: #555b5f; font-family: var(--mono); font-size: 12px; text-align: center; }
 .trace-loading span { max-width: 320px; color: #858b8f; font-size: 10px; }
-.trace-loading-spinner { width: 34px; height: 34px; border: 3px solid #d9dcde; border-top-color: var(--accent); border-radius: 50%; animation: trace-spin .8s linear infinite; }
-@keyframes trace-spin { to { transform: rotate(360deg); } }
+.trace-progress { display: grid; width: clamp(56px, 6vw, 64px); aspect-ratio: 1; place-items: center; margin-bottom: 4px; color: #ff8c00; animation: trace-loader-colors 7.2s ease-in-out infinite; }
+.trace-progress-ring { filter: drop-shadow(0 0 4px currentColor); animation-duration: 2s; }
+.trace-progress-ring .MuiCircularProgress-circle { animation-duration: 2s; }
 .viewer-skeleton { position: absolute; inset: 0; padding: clamp(28px, 5vw, 72px); overflow: hidden; background: #f4f5f5; }
 .viewer-skeleton .skeleton-block { background: #d9dcde; }
 .viewer-skeleton-title { width: min(420px, 62%); height: 38px; }
@@ -548,6 +552,7 @@ textarea::selection { color: var(--background); background: var(--accent); }
 @keyframes team-setup-icon-spin { to { transform: rotate(360deg); } }
 @keyframes team-setup-ring-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 173, 66, .35); } 50% { box-shadow: 0 0 0 8px rgba(255, 173, 66, 0); } }
 @keyframes team-setup-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes trace-loader-colors { 0%, 100% { color: #ff8c00; } 16% { color: #ff2d95; } 32% { color: #ea4335; } 48% { color: #34a853; } 64% { color: #fbbc05; } 82% { color: #4285f4; } }
 @media (max-width: 700px) {
   .splash-image { object-position: center 32%; }
   .splash-vignette { background: linear-gradient(0deg, rgba(5, 8, 12, .55) 0%, rgba(5, 8, 12, .08) 55%, rgba(5, 8, 12, .34) 100%); }

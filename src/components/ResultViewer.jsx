@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
 
 function hasRenderableContent(content) {
   const documentNode = new DOMParser().parseFromString(content, "text/html");
@@ -174,7 +176,9 @@ function ResultViewer({ result, onBack }) {
         <div className="result-viewer-content">
           {(isTraceLoading || isTraceFrameLoading) && !hasTraceError ? (
             <div className="trace-loading" aria-label="Loading trace" aria-busy="true">
-              <span className="trace-loading-spinner" aria-hidden="true" />
+              <Box className="trace-progress">
+                <CircularProgress className="trace-progress-ring" color="inherit" size="100%" thickness={3.2} aria-label="Loading trace" />
+              </Box>
               <strong>Loading trace…</strong>
               <span>Starting the Playwright trace viewer, this can take a few seconds.</span>
             </div>

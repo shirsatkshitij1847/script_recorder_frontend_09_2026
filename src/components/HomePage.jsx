@@ -147,12 +147,14 @@ function HomePage({ selectedUser, selectedVersion, onSelectedUserChange, onSelec
               <h3>Framework</h3>
               <p>Review the Electron, React, Vite, API, and result viewer architecture.</p>
             </button>
-            <button className="home-tile nav-tile editor-tile" type="button" onClick={() => onNavigate("editor")}>
+            
+            {/* <button className="home-tile nav-tile editor-tile" type="button" onClick={() => onNavigate("editor")}>
               <span className="home-tile-icon" aria-hidden="true">&#9998;</span>
               <span className="panel-kicker">EDITOR</span>
               <h3>Workspace files</h3>
               <p>Open a folder, edit scripts or notes, and save changes locally.</p>
-            </button>
+            </button> */}
+
             <button className="home-tile nav-tile dashboard-tile" type="button" onClick={() => onNavigate("results")}>
               <span className="home-tile-icon" aria-hidden="true">&#128202;</span>
               <span className="panel-kicker">RESULTS</span>

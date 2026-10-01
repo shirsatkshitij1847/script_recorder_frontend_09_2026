@@ -26,14 +26,14 @@ Use the editor for notes, drafts, and documentation. Your content stays ready wh
 
 const initialRecorderScript = `const { test, expect } = require('@playwright/test');
 
-test('recorded script', async ({ page }) => {
+test('Playwright dashboard test @transaction_name=loginPerformance @tag=importantinfo - <scenario name>', async ({ page }) => {
   await page.goto('');
 
 });
 `;
 
-function escapeRecorderText(value) {
-  return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+function escapeRecorderTemplateLiteral(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
 }
 
 function clampZoom(value) {
@@ -81,7 +81,6 @@ function App() {
   const [recorderCode, setRecorderCode] = useState(initialRecorderScript);
   const [recorderChooser, setRecorderChooser] = useState(null);
   const [isRecorderSelecting, setIsRecorderSelecting] = useState(false);
-  const recorderFirstUrlRef = useRef(true);
   const recorderPendingCommentRef = useRef("");
 
   const changeAppZoom = (delta) => {
@@ -178,19 +177,27 @@ function App() {
     if (!api) return undefined;
 
     const addRecorderPageUrl = (pageUrl) => {
-      if (!recorderFirstUrlRef.current) return;
-      recorderFirstUrlRef.current = false;
-
       setRecorderCode((currentCode) => {
         const lines = currentCode.split("\n");
-        const index = lines.findIndex((line) => line.trim().startsWith("await page.goto("));
-        if (index >= 0) lines[index] = `  await page.goto('${escapeRecorderText(pageUrl)}');`;
+        const gotoLine = `  await page.goto(\`${escapeRecorderTemplateLiteral(pageUrl)}\`);`;
+        const gotoIndexes = lines.reduce((indexes, line, index) => {
+          if (line.trim().startsWith("await page.goto(")) indexes.push(index);
+          return indexes;
+        }, []);
+
+        if (gotoIndexes.length) {
+          lines[gotoIndexes[0]] = gotoLine;
+        } else {
+          const bodyIndex = lines.findIndex((line) => line.includes("async ({ page }) => {"));
+          const insertAt = bodyIndex >= 0 ? bodyIndex + 1 : lines.findIndex((line) => line.trim() === "});");
+          lines.splice(insertAt >= 0 ? insertAt : lines.length, 0, gotoLine);
+        }
         return lines.join("\n");
       });
     };
 
     const addRecorderComment = (text) => {
-      recorderPendingCommentRef.current = `    // ${text}\n\n`;
+      recorderPendingCommentRef.current = `  // ${text}\n\n`;
     };
 
     const unsubscribers = [
@@ -229,7 +236,7 @@ function App() {
 
     setRecorderCode((currentCode) => {
       const position = currentCode.lastIndexOf("});");
-      const snippet = `    await ${action};\n\n${comment}`;
+      const snippet = `  await ${action};\n\n${comment}`;
       return position < 0 ? currentCode + snippet : currentCode.slice(0, position) + snippet + currentCode.slice(position);
     });
     setRecorderChooser(null);

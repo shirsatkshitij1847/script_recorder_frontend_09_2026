@@ -249,6 +249,7 @@ async function startRecorderChrome(url) {
     window.__recorderSelecting = false;
     let oldElement;
     let oldOutline;
+    let oldOutlinePriority;
 
     function xpathValue(value) {
       if (!value.includes("'")) return `'${value}'`;
@@ -256,58 +257,156 @@ async function startRecorderChrome(url) {
       return `concat('${value.split("'").join("', \"'\", '")}')`;
     }
 
-    function getXPath(element) {
-      const id = element.id;
-      if (id) return `//*[@id=${xpathValue(id)}]`;
+    const TEST_ATTRIBUTES = ["data-testid", "data-test", "data-test-id", "data-qa", "data-cy"];
+    const STABLE_ATTRIBUTES = [...TEST_ATTRIBUTES, "name", "aria-label", "placeholder", "title", "alt", "for", "role", "href"];
+    const ATTRIBUTE_INFO = {
+      name: [90, "Form field name - tied to backend, rarely changes."],
+      "aria-label": [85, "Accessibility label - meaningful and usually stable."],
+      placeholder: [80, "Placeholder text shown inside the field."],
+      title: [75, "Tooltip title attribute."],
+      alt: [75, "Image alternative text."],
+      for: [75, "Label linked to a field id."],
+      role: [60, "ARIA role - stable, but often shared by many elements."],
+      href: [70, "Link target - stable unless URLs change."],
+    };
+    const INTERACTIVE = "a,button,input,select,textarea,label,summary,option,[role=button],[role=link],[role=tab],[role=menuitem],[role=checkbox],[role=radio],[role=option]";
 
+    // Clicking an <svg>/<span> inside a button should record the button itself.
+    function interactiveTarget(element) {
+      return (element && element.closest && element.closest(INTERACTIVE)) || element;
+    }
+
+    // Skip framework-generated ids/classes like ":r1:", "ember123", "css-1x2y3z".
+    function isStable(value) {
+      return Boolean(value) && value.length <= 60 && !/^[:\d]|\d{3,}|^(css|sc|jsx|ng|ember)-/i.test(value);
+    }
+
+    function getText(element) {
+      return (element.innerText || element.textContent || "").trim().replace(/\s+/g, " ");
+    }
+
+    function stablePredicate(element) {
+      if (isStable(element.id)) return `@id=${xpathValue(element.id)}`;
+      for (const attribute of STABLE_ATTRIBUTES) {
+        const value = element.getAttribute(attribute);
+        if (isStable(value)) return `@${attribute}=${xpathValue(value)}`;
+      }
+      return "";
+    }
+
+    // Relative path from the nearest ancestor with a stable attribute; indexes only when siblings share the tag.
+    function getXPath(element) {
       const parts = [];
       let current = element;
-      while (current && current.nodeType === 1) {
-        let position = 1;
-        let sibling = current.previousElementSibling;
-        while (sibling) {
-          if (sibling.tagName === current.tagName) position++;
-          sibling = sibling.previousElementSibling;
+      while (current && current.nodeType === 1 && current !== document.documentElement) {
+        const tag = current.tagName.toLowerCase();
+        const predicate = stablePredicate(current);
+        if (predicate) {
+          parts.unshift(`${tag}[${predicate}]`);
+          return `//${parts.join("/")}`;
         }
-        parts.unshift(`${current.tagName.toLowerCase()}[${position}]`);
+        const sameTag = current.parentElement ? Array.from(current.parentElement.children).filter((child) => child.tagName === current.tagName) : [];
+        parts.unshift(sameTag.length > 1 ? `${tag}[${sameTag.indexOf(current) + 1}]` : tag);
         current = current.parentElement;
       }
-      return `/${parts.join("/")}`;
+      return `//${parts.join("/")}`;
     }
 
     function classPart(value) {
-      return `contains(concat(' ', normalize-space(@class), ' '), ${xpathValue(` ${value} `)})`;
+      return `contains(@class,${xpathValue(value)})`;
+    }
+
+    function evaluate(xpath) {
+      try {
+        return document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      } catch {
+        return null;
+      }
+    }
+
+    // Cut long text at a word boundary for contains() matching.
+    function textSnippet(text) {
+      if (text.length <= 40) return text;
+      const cut = text.slice(0, 40);
+      return cut.slice(0, cut.lastIndexOf(" ") > 15 ? cut.lastIndexOf(" ") : 40).trim();
     }
 
     function getSuggestions(element) {
       const list = [];
       const tag = element.tagName.toLowerCase();
-      const id = element.id;
-      const text = (element.innerText || "").trim().replace(/\s+/g, " ");
-      const classes = Array.from(element.classList || []).filter(Boolean);
+      const id = isStable(element.id) ? element.id : "";
+      const rawText = getText(element);
+      const text = rawText.length <= 60 ? rawText : "";
+      const classes = Array.from(element.classList || []).filter(isStable);
+      const type = element.getAttribute("type");
 
-      function add(name, xpath) {
-        const result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-        if (result.snapshotLength === 1 && result.snapshotItem(0) === element && !list.some((item) => item.xpath === xpath)) {
-          list.push({ name, xpath });
+      // Only keep XPaths that match exactly one node: the selected element.
+      function add(name, xpath, why, score) {
+        if (list.some((item) => item.xpath === xpath)) return false;
+        const result = evaluate(xpath);
+        if (result && result.snapshotLength === 1 && result.snapshotItem(0) === element) {
+          list.push({ name, xpath, why, score });
+          return true;
         }
+        return false;
       }
 
-      if (id) add("By ID", `//*[@id=${xpathValue(id)}]`);
-      classes.forEach((value) => add("By Class", `//${tag}[${classPart(value)}]`));
-      if (text && text.length <= 100) add("By Text", `//${tag}[normalize-space(.)=${xpathValue(text)}]`);
-      if (id && text && text.length <= 100) add("By ID + Text", `//${tag}[@id=${xpathValue(id)} and normalize-space(.)=${xpathValue(text)}]`);
-      classes.forEach((value) => {
-        if (id) add("By ID + Class", `//${tag}[@id=${xpathValue(id)} and ${classPart(value)}]`);
-        if (text && text.length <= 100) add("By Class + Text", `//${tag}[${classPart(value)} and normalize-space(.)=${xpathValue(text)}]`);
-      });
-      if (classes.length > 1) add("By Classes", `//${tag}[${classes.map(classPart).join(" and ")}]`);
-      ["data-testid", "data-test", "name", "aria-label", "placeholder", "title"].forEach((attribute) => {
+      TEST_ATTRIBUTES.forEach((attribute) => {
         const value = element.getAttribute(attribute);
-        if (value) add(`By ${attribute}`, `//${tag}[@${attribute}=${xpathValue(value)}]`);
+        if (isStable(value)) add(`By ${attribute}`, `//${tag}[@${attribute}=${xpathValue(value)}]`, "Dedicated test attribute - added for automation, most reliable.", 100);
       });
-      add("Full Path", getXPath(element));
-      return list;
+
+      if (id) add("By ID", `//${tag}[@id=${xpathValue(id)}]`, "Unique element id - stable and fast.", 95);
+
+      Object.entries(ATTRIBUTE_INFO).forEach(([attribute, [score, why]]) => {
+        const value = element.getAttribute(attribute);
+        if (!isStable(value)) return;
+        if (!add(`By ${attribute}`, `//${tag}[@${attribute}=${xpathValue(value)}]`, why, score) && type) {
+          add(`By ${attribute} + type`, `//${tag}[@${attribute}=${xpathValue(value)} and @type=${xpathValue(type)}]`, `${why} Combined with type to make it unique.`, score - 5);
+        }
+      });
+
+      if ((tag === "input") && ["button", "submit", "reset"].includes(type) && element.value) {
+        add("By button value", `//input[@type=${xpathValue(type)} and @value=${xpathValue(element.value)}]`, "Button caption stored in the value attribute.", 80);
+      }
+
+      const label = element.labels && element.labels[0];
+      const labelText = label ? getText(label) : "";
+      if (labelText && labelText.length <= 60) {
+        const labelPath = `//label[normalize-space()=${xpathValue(labelText)}]`;
+        if (label.contains(element)) add("By label", `${labelPath}//${tag}`, "Field found inside its visible label.", 85);
+        else add("By label", `${labelPath}/following::${tag}[1]`, "First field after its visible label - matches how users see the form.", 82);
+      }
+
+      if (text) add("By text", `//${tag}[normalize-space()=${xpathValue(text)}]`, "Exact visible text (extra whitespace ignored).", 80);
+      if (rawText && !text) add("By partial text", `//${tag}[contains(normalize-space(),${xpathValue(textSnippet(rawText))})]`, "Start of long visible text - tolerant to text edits at the end.", 65);
+
+      let ancestor = element.parentElement;
+      while (ancestor && ancestor !== document.body && !stablePredicate(ancestor)) ancestor = ancestor.parentElement;
+      if (ancestor && ancestor !== document.body) {
+        const scope = `//${ancestor.tagName.toLowerCase()}[${stablePredicate(ancestor)}]`;
+        if (text) add("Scoped text", `${scope}//${tag}[normalize-space()=${xpathValue(text)}]`, "Text made unique by searching inside a stable parent.", 75);
+        classes.forEach((value) => add("Scoped class", `${scope}//${tag}[${classPart(value)}]`, "Class made unique by searching inside a stable parent.", 62));
+        add("Scoped tag", `${scope}//${tag}`, "Only element of this type inside a stable parent.", 58);
+      }
+
+      if (text) classes.forEach((value) => add("By class + text", `//${tag}[${classPart(value)} and normalize-space()=${xpathValue(text)}]`, "Class and visible text together.", 70));
+      classes.forEach((value) => add("By class", `//${tag}[${classPart(value)}]`, "CSS class - may change with styling updates.", 55));
+      if (classes.length > 1) add("By classes", `//${tag}[${classes.slice(0, 2).map(classPart).join(" and ")}]`, "Two CSS classes combined.", 50);
+
+      add("Relative path", getXPath(element), "Structural path from nearest stable parent - breaks if layout changes.", 30);
+
+      if (!list.length) {
+        const base = text ? `//${tag}[normalize-space()=${xpathValue(text)}]` : classes[0] ? `//${tag}[${classPart(classes[0])}]` : `//${tag}`;
+        const all = evaluate(base);
+        for (let i = 0; all && i < all.snapshotLength; i++) {
+          if (all.snapshotItem(i) === element) {
+            list.push({ name: "By index", xpath: `(${base})[${i + 1}]`, why: "Last resort: position-based, breaks if element order changes.", score: 10 });
+            break;
+          }
+        }
+      }
+      return list.sort((a, b) => b.score - a.score).slice(0, 8);
     }
 
     function elementData(element) {
@@ -326,7 +425,7 @@ async function startRecorderChrome(url) {
     }
 
     function clearHover() {
-      if (oldElement) oldElement.style.outline = oldOutline;
+      if (oldElement) oldElement.style.setProperty("outline", oldOutline, oldOutlinePriority);
       oldElement = null;
     }
 
@@ -340,12 +439,13 @@ async function startRecorderChrome(url) {
 
     document.addEventListener("mousemove", (event) => {
       if (!window.__recorderSelecting) return;
-      const element = deepestElementAt(event);
+      const element = interactiveTarget(deepestElementAt(event));
       if (!element || element === oldElement) return;
       clearHover();
       oldElement = element;
-      oldOutline = element.style.outline;
-      element.style.outline = "2px solid #ef4444";
+      oldOutline = element.style.getPropertyValue("outline");
+      oldOutlinePriority = element.style.getPropertyPriority("outline");
+      element.style.setProperty("outline", "2px solid #ef4444", "important");
     }, true);
 
     document.addEventListener("click", (event) => {
@@ -355,7 +455,7 @@ async function startRecorderChrome(url) {
       clearHover();
       event.preventDefault();
       event.stopPropagation();
-      window.sendSelectedElement(elementData(element));
+      window.sendSelectedElement(elementData(interactiveTarget(element)));
 
       const observer = new MutationObserver(() => {
         window.sendPageChange({ type: "content-changed", url: window.location.href });
