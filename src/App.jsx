@@ -14,7 +14,7 @@ import WorkspaceSetupPage from "./components/WorkspaceSetupPage";
 const minZoom = 0.8;
 const maxZoom = 1.5;
 const zoomStep = 0.1;
-const splashDuration = 5000;
+const splashDuration = 8000;
 
 const initialContent = `# Welcome to your workspace
 

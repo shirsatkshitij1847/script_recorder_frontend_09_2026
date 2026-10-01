@@ -1,11 +1,11 @@
 function NavigationBar({ activePage, onNavigate, appZoom, onZoomIn, onZoomOut, onZoomReset }) {
   return (
     <header className="topbar">
-      <button className="brand" onClick={() => onNavigate("home")} aria-label="Go to home">
-        <span className="brand-mark">L</span>
+      <button className="brand" onClick={() => onNavigate("home")} aria-label="Go to test Automater home">
+        <span className="brand-mark">T</span>
         <span>
-          <strong>LoadTest</strong>
-          <small>performance console</small>
+          <strong>test🛺Mater</strong>
+          <small>Your Playwright workspace</small>
         </span>
       </button>
 

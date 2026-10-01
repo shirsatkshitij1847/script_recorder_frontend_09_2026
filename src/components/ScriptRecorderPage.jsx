@@ -15,6 +15,7 @@ function getActionChoices(data, locator) {
     ["Assert visible", `expect(${locator}).toBeVisible()`],
   ];
   if (data.tagName === "INPUT" || data.tagName === "TEXTAREA") actions.splice(1, 0, ["Fill", `${locator}.fill('')`]);
+  actions.push(...["Enter", "Tab", "Escape", "Backspace", "ArrowDown", "ArrowUp"].map((key) => [`Press ${key}`, `${locator}.press('${key}')`]));
   if (data.text) actions.push(["Assert text", `expect(${locator}).toContainText(${JSON.stringify(data.text)})`]);
   return actions;
 }
