@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 
+const workflowImages = {
+  setup: `${import.meta.env.BASE_URL}userCreationImage.png`,
+  writer: `${import.meta.env.BASE_URL}scriptRecorder.png`,
+  results: `${import.meta.env.BASE_URL}ResultViwer.png`,
+};
+
 function AboutPage({ onNavigate }) {
   const [expandedImage, setExpandedImage] = useState(null);
 
@@ -36,8 +42,8 @@ function AboutPage({ onNavigate }) {
         <li className="about-visual-step setup-visual-step">
           <span className="about-visual-kicker"><b>01</b> GET READY</span>
           <figure>
-            <button className="about-image-trigger" type="button" aria-label="View larger: User and release version setup screen" onClick={() => setExpandedImage({ src: "/userCreationImage.png", alt: "User and release version setup screen" })}>
-              <img src="/userCreationImage.png" alt="" />
+            <button className="about-image-trigger" type="button" aria-label="View larger: User and release version setup screen" onClick={() => setExpandedImage({ src: workflowImages.setup, alt: "User and release version setup screen" })}>
+              <img src={workflowImages.setup} alt="" />
             </button>
             <figcaption><strong>User + version</strong><span>Choose who owns the run, then create its release version.</span></figcaption>
           </figure>
@@ -45,8 +51,8 @@ function AboutPage({ onNavigate }) {
         <li className="about-visual-step writer-visual-step">
           <span className="about-visual-kicker"><b>02</b> BUILD THE TEST</span>
           <figure>
-            <button className="about-image-trigger" type="button" aria-label="View larger: Playwright Script Writer screen" onClick={() => setExpandedImage({ src: "/scriptRecorder.png", alt: "Playwright Script Writer screen" })}>
-              <img src="/scriptRecorder.png" alt="" />
+            <button className="about-image-trigger" type="button" aria-label="View larger: Playwright Script Writer screen" onClick={() => setExpandedImage({ src: workflowImages.writer, alt: "Playwright Script Writer screen" })}>
+              <img src={workflowImages.writer} alt="" />
             </button>
             <figcaption><strong>Script Writer</strong><span>Capture browser steps and shape them into a test.</span></figcaption>
           </figure>
@@ -54,8 +60,8 @@ function AboutPage({ onNavigate }) {
         <li className="about-visual-step results-visual-step">
           <span className="about-visual-kicker"><b>03</b> SEE WHAT HAPPENED</span>
           <figure>
-            <button className="about-image-trigger" type="button" aria-label="View larger: Test result viewer screen" onClick={() => setExpandedImage({ src: "/ResultViwer.png", alt: "Test result viewer screen" })}>
-              <img src="/ResultViwer.png" alt="" />
+            <button className="about-image-trigger" type="button" aria-label="View larger: Test result viewer screen" onClick={() => setExpandedImage({ src: workflowImages.results, alt: "Test result viewer screen" })}>
+              <img src={workflowImages.results} alt="" />
             </button>
             <figcaption><strong>Result Viewer</strong><span>Open a report or trace and inspect the run.</span></figcaption>
           </figure>
